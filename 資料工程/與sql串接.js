@@ -1,56 +1,134 @@
-function doGet(e){
-    return  remove();
+// Replace the variables in this block with real values.
+// You can find the "Instance connection name" in the Google Cloud
+//   Platform Console, on the instance Overview page.
+var connectionName = 'Instance_connection_name';
+var rootPwd = 'root_password';
+var user = 'user_name';
+var userPwd = 'user_password';
+var db = 'database_name';
+
+var root = 'root';
+var instanceUrl = 'jdbc:google:mysql://' + connectionName;
+var dbUrl = instanceUrl + '/' + db;
+var con = Jdbc.getConnection(instanceUrl, root, rootPwd);
+
+/**
+ * Create a new database within a Cloud SQL instance.
+ */
+function createDatabase() {
+  var conn = Jdbc.getCloudSqlConnection(instanceUrl, root, rootPwd);
+  conn.createStatement().execute('CREATE DATABASE ' + db);
+}
+
+/**
+ * Create a new user for your database with full privileges.
+ */
+function createUser() {
+  var conn = Jdbc.getCloudSqlConnection(dbUrl, root, rootPwd);
+
+  var stmt = conn.prepareStatement('CREATE USER ? IDENTIFIED BY ?');
+  stmt.setString(1, user);
+  stmt.setString(2, userPwd);
+  stmt.execute();
+
+  conn.createStatement().execute('GRANT ALL ON `%`.* TO ' + user);
+}
+
+/**
+ * Create a new table in the database.
+ */
+function createTable() {
+  var conn = Jdbc.getCloudSqlConnection(dbUrl, user, userPwd);
+  conn.createStatement().execute('CREATE TABLE entries '
+      + '(guestName VARCHAR(255), content VARCHAR(255), '
+      + 'entryID INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(entryID));');
 }
 
 
-function remove(){
-  var SS = SpreadsheetApp.openByUrl('https://docs.google.com/spreadsheets/d/10mxT3Tl0fuA3VM3lkrcW4UOmhLMezhPculemrLiP4Ng/edit#gid=0');
-  var sheet = SS.getSheetByName('RemoveCalenderEvent');
-    var copylist = sheet.getRange(2,1,sheet.getLastRow()-1,sheet.getLastColumn()-1).getValues();
-  var ID = copylist[0][2];
-  var calendar = CalendarApp.getCalendarById(ID);
-  var i,j,project,output = [],year1,year2,date1,date2,event;
-  var this_year = new Date().getFullYear()
+// Replace the variables in this block with real values.
+// You can find the "Instance connection name" in the Google Cloud
+//   Platform Console, on the instance Overview page.
+var connectionName = 'Instance_connection_name';
+var user = 'user_name';
+var userPwd = 'user_password';
+var db = 'database_name';
 
-  //Logger.log(copylist[0][5])
-  for(i=0;i<copylist.length;i++){
-    try{
-      if(copylist[i][0]==1){
-        
-        if(copylist[i][4].length > 5){//格式含年
-          year1 = copylist[i][4].substring(0,3);
-          date1 = copylist[i][4].substring(5);
-          year2 = copylist[i][6].substring(0,3);
-          date2 = copylist[i][6].substring(5);
-        }else{
-          year1 = this_year
-          year2 = this_year;
-          date1 = copylist[i][4];
-          date2 = copylist[i][6];
-        }
-        
-         event = calendar.getEvents(new Date(date1+','+year1+' '+copylist[i][5]+' GMT+08:00'),
-                                    new Date(date2+','+year2+' '+copylist[i][7]+' GMT+08:00'),
-                                  {search: copylist[i][3]}
-                                   );
-        for(j=0;j<event.length;j++){
-         event[j].deleteEvent();
-        }
-        Logger.log(date1+','+year1+' '+copylist[i][5],date2+','+year2+' '+copylist[i][7])
-          
-          output.push([new Date()]);
-       
-      }else{
-        output.push([copylist[i][8]]);
-      }
-    }catch(f){
-      output.push([f])
-    }
+var dbUrl = 'jdbc:google:mysql://' + connectionName + '/' + db;
+
+/**
+ * Write one row of data to a table.
+ */
+function writeOneRecord() {
+  var conn = Jdbc.getCloudSqlConnection(dbUrl, user, userPwd);
+
+  var stmt = conn.prepareStatement('INSERT INTO entries '
+      + '(guestName, content) values (?, ?)');
+  stmt.setString(1, 'First Guest');
+  stmt.setString(2, 'Hello, world');
+  stmt.execute();
+}
+
+/**
+ * Write 500 rows of data to a table in a single batch.
+ */
+function writeManyRecords() {
+  var conn = Jdbc.getCloudSqlConnection(dbUrl, user, userPwd);
+  conn.setAutoCommit(false);
+
+  var start = new Date();
+  var stmt = conn.prepareStatement('INSERT INTO entries '
+      + '(guestName, content) values (?, ?)');
+  for (var i = 0; i < 500; i++) {
+    stmt.setString(1, 'Name ' + i);
+    stmt.setString(2, 'Hello, world ' + i);
+    stmt.addBatch();
   }
-  sheet.getRange(2,9,output.length,1).setValues(output);
-//Logger.log('Event ID: ' + event.getId());
-  
+
+  var batch = stmt.executeBatch();
+  conn.commit();
+  conn.close();
+
+  var end = new Date();
+  Logger.log('Time elapsed: %sms for %s rows.', end - start, batch.length);
 }
 
 
 
+**
+ * Replace the variables in this block with real values.
+ * You can find the "Instance connection name" in the Google Cloud
+ * Platform Console, on the instance Overview page.
+ */
+var connectionName = 'Instance_connection_name';
+var user = 'user_name';
+var userPwd = 'user_password';
+var db = 'database_name';
+
+var dbUrl = 'jdbc:google:mysql://' + connectionName + '/' + db;
+
+/**
+ * Read up to 1000 rows of data from the table and log them.
+ */
+function readFromTable() {
+  var conn = Jdbc.getCloudSqlConnection(dbUrl, user, userPwd);
+
+  var start = new Date();
+  var stmt = conn.createStatement();
+  stmt.setMaxRows(1000);
+  var results = stmt.executeQuery('SELECT * FROM entries');
+  var numCols = results.getMetaData().getColumnCount();
+
+  while (results.next()) {
+    var rowString = '';
+    for (var col = 0; col < numCols; col++) {
+      rowString += results.getString(col + 1) + '\t';
+    }
+    Logger.log(rowString);
+  }
+
+  results.close();
+  stmt.close();
+
+  var end = new Date();
+  Logger.log('Time elapsed: %sms', end - start);
+}

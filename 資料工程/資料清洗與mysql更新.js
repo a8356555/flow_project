@@ -1,10 +1,95 @@
 
+/*<sql setting>*/
+var connectionName = 'Instance_connection_name';
+var rootPwd = 'root_password';
+var user = 'user_name';
+var userPwd = 'user_password';
+var db = 'database_name';
+
+var root = 'root';
+var instanceUrl = 'jdbc:google:mysql://' + connectionName;
+var dbUrl = instanceUrl + '/' + db;
+/*</sql setting>*/
+
+var urlRawData1 = '...'
+var urlRawData2 = '...'
+
 function main(){
-  let urlRawData1 = '...'
-  let urlRawData2 = '...'
+  let tableName1 = '..'
+  let tableName2 = '..'
+
+  let table1 = getTable1().getUnique().removeExistedData(tableName1)
+  let table2 = getTable2().getUnique().removeExistedData(tableName2)
+
+  table1.writeIntoSql(tableName1)
+  table2.writeIntoSql(tableName2)
+
 }
+
+
+function readFromSql(tableName) {
+
+  let start = new Date();
+  let stmt = conn.createStatement();
+  stmt.setMaxRows(1000);
+  let results = stmt.executeQuery('SELECT * FROM ' + tableName);
+  let numCols = results.getMetaData().getColumnCount();
+
+  let output = []
+  while (results.next()) {
+    let row = [];
+    for (var col = 0; col < numCols; col++) {
+      row.push(results.getString(col + 1));
+    }
+    output.push(row)
+  }
+
+  results.close();
+  stmt.close();
+
+  var end = new Date();
+  Logger.log('Time elapsed: %sms', end - start);
+  return output
+}
+
 Array.prototype.getUnique = function(){
+  /* @brief get unique value
+   */
   return [...new Set(this.map(JSON.stringfy))].map(JSON.parse)
+}
+
+Array.prototype.removeExistedData = function(tableName){
+  const existedData = readFromSql(tableName).map(JSON.stringify)
+  return this.map(JSON.stringify).filter(row => !existedData.includes(row)).map(JSON.parse)
+}
+
+Array.prototype.writeIntoSql = function(tableName){
+  conn.setAutoCommit(false);
+  let start = new Date();
+  
+  let cols = this[0][0]
+  let questionMarks = '?'
+  this.slice(1, ).forEach(function(elem){
+    cols = cols + ', ' + elem
+    questionMarks = questionMarks + ', ?'
+  })
+
+  let stmt = conn.prepareStatement('INSERT INTO ' + tableName +
+      + ' (' + cols + ') values (' + questionMarks + ')');
+
+  this.slice(1,).forEach(function(row){
+    cols.forEach(function(col, j){
+      stmt.setString(j, row[j]);
+    })
+    stmt.addBatch();
+  })
+
+  var batch = stmt.executeBatch();
+  conn.commit();
+  conn.close();
+
+  var end = new Date();
+  Logger.log('Time elapsed: %sms for %s rows.', end - start, batch.length);
 }
 
 function boolHandler(input){
